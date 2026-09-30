@@ -1,0 +1,56 @@
+{
+  "name": "pomodoro-electron",
+  "productName": "番茄钟",
+  "version": "1.0.0",
+  "description": "Windows 桌面番茄钟浮窗：无边框、透明、始终置顶，带托盘与系统通知 | A frameless always-on-top Pomodoro widget for Windows",
+  "author": "zifangsky",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "icons": "python make-icons.py",
+    "renderer": "node build.mjs",
+    "start": "node build.mjs && electron .",
+    "verify": "node scripts/verify-all.mjs",
+    "dist": "node scripts/verify-all.mjs --package",
+    "dist:portable": "node scripts/verify-all.mjs --package --portable",
+    "smoke": "node scripts/verify-all.mjs --package --smoke-app",
+    "smoke:portable": "node scripts/verify-all.mjs --package --portable --smoke-app",
+    "test": "node scripts/dom-test.mjs && node scripts/dom-test-desktop.mjs"
+  },
+  "devDependencies": {
+    "electron": "^44.0.0",
+    "electron-builder": "^25.1.8",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "build": {
+    "appId": "com.pomodoro.electron",
+    "productName": "番茄钟",
+    "executableName": "Pomodoro",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "portable": {
+      "artifactName": "Pomodoro-${version}-portable.exe"
+    },
+    "compression": "normal"
+  }
+}
