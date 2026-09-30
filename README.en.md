@@ -8,6 +8,8 @@ conventional frontend toolchain — `build.mjs` inlines the widget source and a 
 build **directly into one self-contained HTML file**, so there is no bundler and the
 artifact is easy to audit.
 
+![Pomodoro widget](docs/screenshot.png)
+
 [中文](README.md) · [MIT License](LICENSE)
 
 ---

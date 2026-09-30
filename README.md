@@ -6,6 +6,8 @@
 `build.mjs` 把组件源码与一份 React UMD **直接内联成一个自包含 HTML**，因此没有打包器，
 产物容易审查。
 
+![番茄钟浮窗](docs/screenshot.png)
+
 [English](README.en.md) · [MIT License](LICENSE)
 
 ---

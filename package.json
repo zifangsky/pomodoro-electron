@@ -9,6 +9,7 @@
   "scripts": {
     "icons": "python make-icons.py",
     "renderer": "node build.mjs",
+    "screenshot": "node scripts/make-screenshot.mjs",
     "start": "node build.mjs && electron .",
     "verify": "node scripts/verify-all.mjs",
     "dist": "node scripts/verify-all.mjs --package",
