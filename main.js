@@ -18,6 +18,8 @@ const ASSETS = path.join(__dirname, 'assets');
 const STATE_FILE = path.join(app.getPath('userData'), 'window-state.json');
 const LOG_FILE = path.join(app.getPath('userData'), 'app.log');
 const APP_ID = 'com.pomodoro.electron';
+/** 置顶在 Windows 上会被后激活的置顶窗口挤下去，所以要定期重新申明 */
+const TOPMOST_INTERVAL_MS = 2500;
 
 let win = null;
 let tray = null;
@@ -200,8 +202,49 @@ function toggleVisible() {
     createWindow();
     return;
   }
-  if (win.isVisible()) win.hide();
-  else win.showInactive();
+  if (win.isVisible()) {
+    win.hide();
+  } else {
+    win.showInactive();
+    enforceTopmost();
+  }
+}
+
+/* ------------------------------------------------------------ 置顶守护 */
+
+let topmostTimer = null;
+
+/**
+ * 重新申明一次置顶。
+ *
+ * 只在创建时调一次 setAlwaysOnTop 是不够的 —— 这是 Windows 上一个很反直觉的机制：
+ * 「置顶」不是一种属性，而是一个**组**。组内谁在前面由**激活顺序**决定，而本窗口是
+ * showInactive 显示的、从不激活，于是任何之后被激活的置顶窗口都会盖到它上面：
+ * 任务栏、资源管理器、以及各种国产软件的悬浮窗（实测这台机器上就有一个腾讯系的
+ * GetCorbicula 窗口常年置顶）。
+ *
+ * 实测数据：窗口本身 exStyle=0x00000008（WS_EX_TOPMOST）没问题，但它上面压着
+ * 两个 explorer 进程的置顶窗口和一个腾讯系置顶窗口。
+ *
+ * 所以必须定期重新申明，并用 moveTop() 把它拎回组内最前。
+ */
+function enforceTopmost() {
+  if (!win || win.isDestroyed() || !alwaysOnTop || !win.isVisible()) return;
+  win.setAlwaysOnTop(true, 'floating');
+  if (typeof win.moveTop === 'function') win.moveTop();
+}
+
+function restartTopmostWatch() {
+  if (topmostTimer !== null) {
+    clearInterval(topmostTimer);
+    topmostTimer = null;
+  }
+  if (alwaysOnTop) {
+    topmostTimer = setInterval(enforceTopmost, TOPMOST_INTERVAL_MS);
+    logLine(`置顶守护已开启：每 ${TOPMOST_INTERVAL_MS}ms 重新申明一次`);
+  } else {
+    logLine('置顶守护已关闭（用户关掉了「始终置顶」）');
+  }
 }
 
 /* ---------------------------------------------------------------- 托盘 */
@@ -220,6 +263,8 @@ function rebuildTray() {
         click: (item) => {
           alwaysOnTop = item.checked;
           if (win && !win.isDestroyed()) win.setAlwaysOnTop(alwaysOnTop, 'floating');
+          restartTopmostWatch();
+          enforceTopmost();
           writeState();
           rebuildTray();
         },
@@ -342,9 +387,13 @@ if (!app.requestSingleInstanceLock()) {
     logLine('app ready，创建窗口与托盘');
     createWindow();
     createTray();
+    restartTopmostWatch();
   });
 
-  app.on('before-quit', () => logLine('before-quit：应用即将退出'));
+  app.on('before-quit', () => {
+    logLine('before-quit：应用即将退出');
+    if (topmostTimer !== null) clearInterval(topmostTimer);
+  });
 
   // 托盘常驻：关掉窗口不退出应用
   app.on('window-all-closed', () => {});

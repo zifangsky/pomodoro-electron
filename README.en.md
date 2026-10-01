@@ -107,6 +107,16 @@ On Windows, moving a `transparent: true` layered window at high frequency makes 
 The trade-off: a drag region receives no `click`, so "expand" on the pill has to hang off a
 `no-drag` child element (the ⌃ arrow).
 
+**Why "always on top" has to be re-asserted periodically**
+On Windows, "always on top" is not a property but a **band**: within that band, z-order is decided
+by **activation order**. This window is shown with `showInactive()` and never activates, so any
+topmost window activated afterwards ends up above it — the taskbar, File Explorer, and the overlay
+windows that many utilities install (the test machine has one from a Tencent component). Measured:
+the window's own `exStyle` really is `WS_EX_TOPMOST`, yet three topmost windows sat above it.
+So the main process re-asserts topmost every 2.5 s and calls `moveTop()` to put it back at the
+front of the band. A dedicated probe confirmed this **does not steal focus** (10 ticks over 20 s,
+the window never gained focus).
+
 **Why the window follows the widget's size**
 The window is sized to the widget's measured size plus a 26 px margin and anchored to its
 bottom-right corner. Collapsing therefore shrinks the window too, leaving no invisible
