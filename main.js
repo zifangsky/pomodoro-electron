@@ -16,13 +16,34 @@ const path = require('node:path');
 const RENDERER = path.join(__dirname, 'renderer', 'index.html');
 const ASSETS = path.join(__dirname, 'assets');
 const STATE_FILE = path.join(app.getPath('userData'), 'window-state.json');
-const APP_ID = 'com.deepseek.dsh.pomodoro';
+const LOG_FILE = path.join(app.getPath('userData'), 'app.log');
+const APP_ID = 'com.pomodoro.electron';
 
 let win = null;
 let tray = null;
 let alwaysOnTop = true;
 let state = {};
 let rendererReady = false;
+
+/* ---------------------------------------------------------------- 日志 */
+
+/**
+ * 追加一行启动日志。
+ * 「双击了没反应」这类故障如果没有日志就只能靠猜 —— 尤其是「第二个实例到底有没有
+ * 走到主进程」这种问题，只有日志能给出答案。文件超过 256 KB 就重开。
+ */
+function logLine(message) {
+  try {
+    try {
+      if (fs.statSync(LOG_FILE).size > 256 * 1024) fs.rmSync(LOG_FILE, { force: true });
+    } catch {
+      /* 文件还不存在 */
+    }
+    fs.appendFileSync(LOG_FILE, `${new Date().toISOString()}  pid=${process.pid}  ${message}\n`);
+  } catch {
+    /* 写不进去不影响使用 */
+  }
+}
 
 /* ------------------------------------------------------------ 窗口状态 */
 
@@ -135,7 +156,12 @@ function createWindow() {
   win.setAlwaysOnTop(alwaysOnTop, 'floating');
   win.setMenuBarVisibility(false);
   win.loadFile(RENDERER);
-  win.once('ready-to-show', () => win.showInactive());
+  win.once('ready-to-show', () => {
+    logLine('ready-to-show：窗口已绘制，显示浮窗');
+    // 上次退出后如果屏幕配置变了（换显示器、改分辨率），保存的位置可能已经在屏幕外
+    clampIntoWorkArea();
+    win.showInactive();
+  });
 
   win.on('moved', scheduleWriteState);
   win.on('close', () => {
@@ -283,21 +309,42 @@ ipcMain.on('notify', (event, payload) => {
 
 app.setAppUserModelId(APP_ID);
 
+logLine('主进程启动，尝试获取单实例锁');
+
 if (!app.requestSingleInstanceLock()) {
+  // 已经有实例在跑：**必须留下痕迹**，否则用户看到的就是「双击了没反应」
+  logLine('未拿到单实例锁 —— 已有实例在运行，本进程退出');
   app.quit();
 } else {
+  logLine('拿到单实例锁');
+
   app.on('second-instance', () => {
-    if (win && !win.isDestroyed()) {
-      win.showInactive();
-    } else {
+    logLine('收到 second-instance：用户又启动了一次');
+    if (!win || win.isDestroyed()) {
       createWindow();
+      return;
     }
+    // 用户明确又双击了一次，就该让浮窗「明确地回应」：
+    // 拉回工作区 → 显示 → 恢复置顶 → 聚焦 → 让渲染页展开并闪一下。
+    // 只做「显示」是不够的：窗口本来就是可见的（可能只是个收起的小胶囊），
+    // 那样用户看到的仍然是「什么都没发生」。
+    clampIntoWorkArea();
+    if (!win.isVisible()) win.show();
+    win.setAlwaysOnTop(alwaysOnTop, 'floating');
+    win.focus();
+    win.webContents
+      .executeJavaScript('window.__pomodoroReveal ? window.__pomodoroReveal() : false')
+      .then((revealed) => logLine('已唤醒已有窗口，渲染页回应=' + revealed))
+      .catch((error) => logLine('唤醒渲染页失败：' + error.message));
   });
 
   app.whenReady().then(() => {
+    logLine('app ready，创建窗口与托盘');
     createWindow();
     createTray();
   });
+
+  app.on('before-quit', () => logLine('before-quit：应用即将退出'));
 
   // 托盘常驻：关掉窗口不退出应用
   app.on('window-all-closed', () => {});

@@ -83,6 +83,17 @@ html,body{
   background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-primary);
 }
+
+/* 「应用已经在运行」时的视觉回应：由主进程调 window.__pomodoroReveal() 触发。
+   没有它的话，第二次双击 exe 只会把已有窗口置前 —— 看起来就像什么都没发生。 */
+@keyframes dshp-attention{
+  0%   { box-shadow: 0 0 0 0 var(--dsw-alias-state-business-primary); }
+  100% { box-shadow: 0 0 0 16px transparent; }
+}
+.dshp-root.dshp-attention .dshp-card,
+.dshp-root.dshp-attention .dshp-pill{
+  animation: dshp-attention .7s ease-out 3;
+}
 </style>
 </head>
 <body>
@@ -161,7 +172,7 @@ html,body{
     measure();
   })();
 
-  /* ---------- 4. 胶囊的「展开」按钮 ----------
+  /* ---------- 4. 胶囊的「展开」按钮 + 唤醒钩子 ----------
      拖动本身交给 CSS 的 -webkit-app-region: drag（见上面的样式），由系统原生拖动，
      不走每帧 IPC setBounds —— 那会在 Windows 上让透明窗口疯狂频闪。
      但拖动区收不到 click，所以「展开」只能挂在小箭头这个 no-drag 元素上。
@@ -169,6 +180,15 @@ html,body{
   (function enablePillExpand() {
     var widgetStore = plugin.store;
     if (!widgetStore) return;
+
+    function attention() {
+      var root = document.querySelector('.dshp-root');
+      if (!root) return;
+      root.classList.remove('dshp-attention');
+      void root.offsetWidth; // 强制重排，动画才能重新播放
+      root.classList.add('dshp-attention');
+      window.setTimeout(function () { root.classList.remove('dshp-attention'); }, 2200);
+    }
 
     document.addEventListener('click', function (event) {
       var target = event.target;
@@ -178,6 +198,19 @@ html,body{
       event.preventDefault();
       widgetStore.setOpen(true);
     }, true);
+
+    /* 主进程在「用户又双击了一次 exe」时会调这个。
+       应用是托盘常驻的，第二次启动只会把已有窗口置前；如果用户此刻看到的是
+       一个收起的小胶囊，「置前」等于什么都没发生。所以这里明确地展开 + 闪一下。 */
+    window.__pomodoroReveal = function () {
+      try {
+        widgetStore.setOpen(true);
+        attention();
+        return true;
+      } catch (error) {
+        return false;
+      }
+    };
   })();
 
   /* ---------- 5. 托盘提示 + 系统通知 ---------- */

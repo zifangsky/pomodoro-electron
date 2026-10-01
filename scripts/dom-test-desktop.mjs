@@ -155,6 +155,25 @@ const DRIVER = `
     /* --- 拖动相关的老接口不该再存在（它正是频闪的来源） --- */
     ok(typeof probe.moveWindowBy !== 'function', '已移除每帧移动窗口的 IPC 通道');
 
+    /* --- 主进程唤醒钩子：解决「第二次双击 exe 像没反应」 --- */
+    ok(typeof window.__pomodoroReveal === 'function', '渲染页暴露了唤醒钩子 __pomodoroReveal');
+
+    var icons2 = document.querySelectorAll('.dshp-icon-btn');
+    icons2[icons2.length - 1].click();
+    await settle();
+    ok(!!document.querySelector('.dshp-pill'), '再次收起为胶囊');
+
+    var revealed = window.__pomodoroReveal();
+    await settle();
+    ok(revealed === true, '唤醒钩子返回 true');
+    ok(!!document.querySelector('.dshp-card'), '唤醒后自动展开成卡片');
+
+    var root = document.querySelector('.dshp-root');
+    ok(
+      !!root && root.classList.contains('dshp-attention'),
+      '唤醒时带上了高亮动画类，用户能看出「已经有了」',
+    );
+
     finish();
   })().catch(function (error) {
     results.push('FAIL|测试脚本抛异常：' + (error && error.message ? error.message : String(error)));

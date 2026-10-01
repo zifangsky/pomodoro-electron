@@ -222,6 +222,30 @@ closes it — the only reliable automated signal for blank-window failures.
 
 ---
 
+## Troubleshooting
+
+### Double-clicking the exe seems to do nothing
+
+The app is a **tray-resident** application. While an instance is already running, a second
+double-click does **not** open a second window — instead the existing widget is
+**expanded, moved back into the work area, restored to always-on-top, focused, and flashed
+with a blue highlight**. So the second launch produces a visible response within a second or two.
+
+If you still see nothing, check in order:
+
+1. **Is the tray icon there?** (Windows may hide it in the overflow area.) Left-click toggles the
+   widget; right-click opens the menu.
+2. **Read the log**: `%APPDATA%\番茄钟\app.log`. Main-process start-up, single-instance
+   interception and wake-ups each append a line — this is the fastest way to tell whether a
+   second process ever reached the main process.
+3. **Does the executable path contain non-ASCII characters?** (See "Known limitations".)
+
+### Full reset
+
+Delete the whole `%APPDATA%\番茄钟\` directory (window position, timer state and the log live there).
+
+---
+
 ## Known limitations
 
 - **The executable must live on a pure-ASCII path**; the single-file build additionally requires
